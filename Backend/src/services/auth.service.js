@@ -1,4 +1,4 @@
-const User = require("../models/User");
+const User = require("../models/user.model");
 const jwt = require("jsonwebtoken");
 
 class AuthService {
@@ -10,7 +10,7 @@ class AuthService {
     };
 
     const token = jwt.sign(payload, process.env.JWT_SECRET, {
-      expiresIn: "7d", // Token valid for 7 days
+      expiresIn: "7d",
     });
 
     return token;
@@ -20,48 +20,52 @@ class AuthService {
   async register(email, password) {
     // Check if user already exists
     const existingUser = await User.findOne({ email });
+
     if (existingUser) {
-      throw new Error("Email already registered");
+      throw new Error("Email is already registered");
     }
 
-    // Create new user (password auto-hashed in pre-save hook)
-    const user = await User.create({
+    // Create new user
+    // Password is automatically hashed by the pre-save hook
+    const newUser = await User.create({
       email,
       password,
     });
 
-    // Generate JWT
-    const token = this.generateToken(user._id, user.role);
-
-    // Return user + token
+    // Return user information
+    // Email verification should happen before login
     return {
-      user: user.toJSON(),
-      token,
+      user: newUser.toJSON(),
     };
   }
 
   // Login existing user
   async login(email, password) {
-    // Check if user exists
+    // Password has select: false, so explicitly include it
     const user = await User.findOne({ email }).select("+password");
+
+    // Use the same error for invalid email/password
     if (!user) {
-      throw new Error("User not found");
+      throw new Error("Invalid email or password");
     }
 
-    // Check if email verified (for later)
+    // Check if email is verified
     if (!user.isEmailVerified) {
       throw new Error("Please verify your email first");
     }
 
-    // Compare password
+    // Compare entered password with stored hash
     const isPasswordCorrect = await user.comparePassword(password);
+
     if (!isPasswordCorrect) {
-      throw new Error("Invalid password");
+      throw new Error("Invalid email or password");
     }
 
     // Generate JWT
-    const token = this.generateToken(user._id, user.role);
+    const token = this.generateToken(user._id.toString(), user.role);
 
+    // Return user + token
+    // toJSON() removes password
     return {
       user: user.toJSON(),
       token,

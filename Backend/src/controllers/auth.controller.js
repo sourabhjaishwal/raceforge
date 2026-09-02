@@ -15,7 +15,7 @@ class AuthController {
       }
 
       // Call service
-      const { user, token } = await AuthService.register(email, password);
+      const { user } = await AuthService.register(email, password);
 
       // Return response
       res.status(201).json({
@@ -23,7 +23,6 @@ class AuthController {
         message: "User registered successfully",
         data: {
           user,
-          token,
         },
       });
     } catch (error) {
@@ -58,7 +57,7 @@ class AuthController {
         },
       });
     } catch (error) {
-      // Pass to error handler
+      // Pass errors to error handler
       next(error);
     }
   }
