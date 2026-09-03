@@ -32,24 +32,29 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+
+    emailVerificationToken: {
+      type: String,
+      default: null,
+    },
+
+    emailVerificationTokenExpiry: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }, // This auto-adds createdAt & updatedAt
 );
 
 // Hash password before saving
-userSchema.pre("save", async function (next) {
+userSchema.pre("save", async function () {
   // Only hash password if it is new or modified
   if (!this.isModified("password")) {
-    return next();
+    return;
   }
 
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (error) {
-    next(error);
-  }
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
 });
 
 // Compare entered password with hashed password
@@ -61,6 +66,8 @@ userSchema.methods.comparePassword = async function (enteredPassword) {
 userSchema.methods.toJSON = function () {
   const userObject = this.toObject();
   delete userObject.password;
+  delete userObject.emailVerificationToken;
+  delete userObject.emailVerificationTokenExpiry;
   return userObject;
 };
 

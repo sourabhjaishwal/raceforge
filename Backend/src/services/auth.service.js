@@ -1,5 +1,7 @@
+const crypto = require("crypto");
 const User = require("../models/user.model");
 const jwt = require("jsonwebtoken");
+const EmailService = require("./email.service");
 
 class AuthService {
   // Generate JWT token
@@ -18,57 +20,135 @@ class AuthService {
 
   // Register new user
   async register(email, password) {
-    // Check if user already exists
     const existingUser = await User.findOne({ email });
 
     if (existingUser) {
-      throw new Error("Email is already registered");
+      const error = new Error("Email already registered");
+      error.statusCode = 400;
+      throw error;
     }
 
-    // Create new user
-    // Password is automatically hashed by the pre-save hook
-    const newUser = await User.create({
+    // Generate email verification token
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+
+    // Token expires in 24 hours
+    const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    // Create user
+    const user = await User.create({
       email,
       password,
+      emailVerificationToken: verificationToken,
+      emailVerificationTokenExpiry: tokenExpiry,
     });
 
-    // Return user information
-    // Email verification should happen before login
+    // Send verification email.
+    // Registration itself succeeds even if email delivery fails.
+    try {
+      await EmailService.sendVerificationEmail(email, verificationToken);
+    } catch (error) {
+      console.error("Verification email failed:", error.message);
+    }
+
+    // Registration does NOT return a JWT.
+    // User must verify email before login.
     return {
-      user: newUser.toJSON(),
+      user: user.toJSON(),
+      message: "Registration successful. Check your email to verify.",
     };
   }
 
   // Login existing user
   async login(email, password) {
-    // Password has select: false, so explicitly include it
     const user = await User.findOne({ email }).select("+password");
 
-    // Use the same error for invalid email/password
     if (!user) {
-      throw new Error("Invalid email or password");
+      const error = new Error("Invalid email or password");
+      error.statusCode = 401;
+      throw error;
     }
 
-    // Check if email is verified
     if (!user.isEmailVerified) {
-      throw new Error("Please verify your email first");
+      const error = new Error("Please verify your email first");
+      error.statusCode = 403;
+      throw error;
     }
 
-    // Compare entered password with stored hash
     const isPasswordCorrect = await user.comparePassword(password);
 
     if (!isPasswordCorrect) {
-      throw new Error("Invalid email or password");
+      const error = new Error("Invalid email or password");
+      error.statusCode = 401;
+      throw error;
     }
 
-    // Generate JWT
     const token = this.generateToken(user._id.toString(), user.role);
 
-    // Return user + token
-    // toJSON() removes password
     return {
       user: user.toJSON(),
       token,
+    };
+  }
+
+  // Verify email
+  async verifyEmail(verificationToken) {
+    const user = await User.findOne({
+      emailVerificationToken: verificationToken,
+      emailVerificationTokenExpiry: {
+        $gt: new Date(),
+      },
+    });
+
+    if (!user) {
+      const error = new Error("Invalid or expired verification token");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    user.isEmailVerified = true;
+    user.emailVerificationToken = null;
+    user.emailVerificationTokenExpiry = null;
+
+    await user.save();
+
+    return {
+      message: "Email verified successfully. You can now login.",
+      user: user.toJSON(),
+    };
+  }
+
+  // Resend verification email
+  async resendVerificationEmail(email) {
+    const user = await User.findOne({ email });
+
+    // Use a generic response for unknown email addresses
+    // to avoid revealing whether an account exists.
+    if (!user) {
+      return {
+        message:
+          "If an account exists for this email, a verification email has been sent.",
+      };
+    }
+
+    if (user.isEmailVerified) {
+      const error = new Error("Email already verified");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+
+    const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    user.emailVerificationToken = verificationToken;
+    user.emailVerificationTokenExpiry = tokenExpiry;
+
+    await user.save();
+
+    await EmailService.sendVerificationEmail(email, verificationToken);
+
+    return {
+      message: "Verification email resent. Check your inbox.",
     };
   }
 
@@ -76,6 +156,7 @@ class AuthService {
   verifyToken(token) {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
       return decoded;
     } catch (error) {
       throw new Error("Invalid or expired token");
