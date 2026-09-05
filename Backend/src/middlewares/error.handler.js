@@ -1,3 +1,8 @@
+/**
+ * @name Error Handler
+ * @description Centralized Express error handling for validation, duplicate key, and application errors
+ */
+
 const errorHandler = (error, req, res, next) => {
   console.error(error);
 

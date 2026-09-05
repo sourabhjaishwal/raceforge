@@ -1,3 +1,8 @@
+/**
+ * @name Auth Middleware
+ * @description Validates JWT authentication tokens and attaches decoded user information to the request
+ */
+
 const AuthService = require("../services/auth.service");
 
 // Middleware to verify JWT and attach user to request

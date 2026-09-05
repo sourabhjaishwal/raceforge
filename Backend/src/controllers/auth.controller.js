@@ -1,7 +1,12 @@
 const AuthService = require("../services/auth.service");
+const AdminService = require("../services/admin.service");
 
 class AuthController {
-  // POST /api/v1/auth/register
+  /**
+   * @name Register User
+   * @description Register a new user account
+   * @endpoint POST /api/v1/auth/register
+   */
   async register(req, res, next) {
     try {
       const { email, password } = req.body;
@@ -31,7 +36,11 @@ class AuthController {
     }
   }
 
-  // POST /api/v1/auth/login
+  /**
+   * @name Login User
+   * @description Authenticate a verified user and return a JWT
+   * @endpoint POST /api/v1/auth/login
+   */
   async login(req, res, next) {
     try {
       const { email, password } = req.body;
@@ -62,7 +71,11 @@ class AuthController {
     }
   }
 
-  // POST /api/v1/auth/verify-email
+  /**
+   * @name Verify Email
+   * @description Verify a user's email address using a verification token
+   * @endpoint POST /api/v1/auth/verify-email
+   */
   async verifyEmail(req, res, next) {
     try {
       const { token } = req.body;
@@ -88,7 +101,11 @@ class AuthController {
     }
   }
 
-  // POST /api/v1/auth/resend-verification
+  /**
+   * @name Resend Verification Email
+   * @description Send a new verification token to an unverified user
+   * @endpoint POST /api/v1/auth/resend-verification
+   */
   async resendVerificationEmail(req, res, next) {
     try {
       const { email } = req.body;
@@ -105,6 +122,36 @@ class AuthController {
       res.status(200).json({
         success: true,
         message: result.message,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * @name Promote User to Admin
+   * @description Promote an existing user to the admin role
+   * @endpoint POST /api/v1/auth/admin/promote
+   */
+  async promoteUser(req, res, next) {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({
+          success: false,
+          error: "Email required",
+        });
+      }
+
+      const user = await AdminService.promoteUser(email);
+
+      res.status(200).json({
+        success: true,
+        message: "User promoted to admin successfully",
+        data: {
+          user: user.toJSON(),
+        },
       });
     } catch (error) {
       next(error);

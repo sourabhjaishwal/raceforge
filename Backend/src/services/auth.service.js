@@ -1,16 +1,23 @@
+/**
+@name Auth Service
+@description Handles registration, login, email verification, JWT generation, and authentication operations
+*/
+
 const crypto = require("crypto");
 const User = require("../models/user.model");
 const jwt = require("jsonwebtoken");
 const EmailService = require("./email.service");
 
 class AuthService {
-  // Generate JWT token
+  /**
+   * @name Generate Token
+   * @description Generate a JWT containing the user's ID and role
+   */
   generateToken(userId, role) {
     const payload = {
       userId,
       role,
     };
-
     const token = jwt.sign(payload, process.env.JWT_SECRET, {
       expiresIn: "7d",
     });
@@ -18,10 +25,12 @@ class AuthService {
     return token;
   }
 
-  // Register new user
+  /**
+   * @name Register User
+   * @description Create a new user account and send an email verification link
+   */
   async register(email, password) {
     const existingUser = await User.findOne({ email });
-
     if (existingUser) {
       const error = new Error("Email already registered");
       error.statusCode = 400;
@@ -58,10 +67,12 @@ class AuthService {
     };
   }
 
-  // Login existing user
+  /**
+   * @name Login User
+   * @description Authenticate a verified user and generate a JWT
+   */
   async login(email, password) {
     const user = await User.findOne({ email }).select("+password");
-
     if (!user) {
       const error = new Error("Invalid email or password");
       error.statusCode = 401;
@@ -90,7 +101,10 @@ class AuthService {
     };
   }
 
-  // Verify email
+  /**
+   * @name Verify Email
+   * @description Verify a user's email using a valid, unexpired verification token
+   */
   async verifyEmail(verificationToken) {
     const user = await User.findOne({
       emailVerificationToken: verificationToken,
@@ -98,7 +112,6 @@ class AuthService {
         $gt: new Date(),
       },
     });
-
     if (!user) {
       const error = new Error("Invalid or expired verification token");
       error.statusCode = 400;
@@ -111,16 +124,21 @@ class AuthService {
 
     await user.save();
 
+    // Bootstrap the first admin after successful email verification.
+    await this.bootstrapFirstAdmin(user);
+
     return {
       message: "Email verified successfully. You can now login.",
       user: user.toJSON(),
     };
   }
 
-  // Resend verification email
+  /**
+   * @name Resend Verification Email
+   * @description Generate a new verification token and send it to an unverified user
+   */
   async resendVerificationEmail(email) {
     const user = await User.findOne({ email });
-
     // Use a generic response for unknown email addresses
     // to avoid revealing whether an account exists.
     if (!user) {
@@ -152,7 +170,10 @@ class AuthService {
     };
   }
 
-  // Verify JWT token
+  /**
+   * @name Verify Token
+   * @description Verify a JWT and return its decoded payload
+   */
   verifyToken(token) {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -161,6 +182,39 @@ class AuthService {
     } catch (error) {
       throw new Error("Invalid or expired token");
     }
+  }
+
+  /**
+   * @name Bootstrap First Admin
+   * @description Promote the configured first-admin email to admin after email verification
+   */
+
+  async bootstrapFirstAdmin(user) {
+    const firstAdminEmail = process.env.FIRST_ADMIN_EMAIL?.toLowerCase().trim();
+
+    if (!firstAdminEmail) {
+      return user;
+    }
+
+    const userEmail = user.email?.toLowerCase().trim();
+
+    if (userEmail !== firstAdminEmail) {
+      return user;
+    }
+
+    const existingAdmin = await User.findOne({
+      role: "admin",
+    });
+
+    if (existingAdmin) {
+      return user;
+    }
+
+    user.role = "admin";
+
+    await user.save();
+
+    return user;
   }
 }
 

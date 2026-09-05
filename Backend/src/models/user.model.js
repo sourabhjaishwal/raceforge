@@ -1,3 +1,8 @@
+/**
+ * @name User Model
+ * @description Defines the RaceForge user schema, authentication fields, roles, and verification state
+ */
+
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
