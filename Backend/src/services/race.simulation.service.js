@@ -111,32 +111,33 @@ class RaceSimulation {
         lapAge++;
 
         /*
- * Tire viability
- *
- * The tire only needs to survive until the next
- * scheduled pit stop. The current lap has already
- * been completed.
- */
+         * Tire viability
+         *
+         * The tire only needs to survive until the next
+         * scheduled pit stop. The current lap has already
+         * been completed.
+         */
 
-const nextPitLap = pitStops
-  .map((stop) => Number(stop.lap))
-  .filter((pitLap) => pitLap > lap)
-  .sort((a, b) => a - b)[0];
+        const isPitLap = pitStopMap.has(lap);
 
-const lapsUntilNextPit = nextPitLap
-  ? nextPitLap - lap
-  : totalLaps - lap;
+        if (!isPitLap) {
+          const nextPitLap = pitStops
+            .map((stop) => Number(stop.lap))
+            .filter((pitLap) => pitLap > lap)
+            .sort((a, b) => a - b)[0];
 
-if (!TireStrategy.isTireViable(
-  currentTire,
-  lapAge,
-  lapsUntilNextPit,
-)) {
-  throw new Error(
-    `Tire failure at lap ${lap}: ${currentTire} compound not viable`,
-  );
-}
+          const lapsUntilNextPit = nextPitLap
+            ? nextPitLap - lap
+            : totalLaps - lap;
 
+          if (
+            !TireStrategy.isTireViable(currentTire, lapAge, lapsUntilNextPit)
+          ) {
+            throw new Error(
+              `Tire failure at lap ${lap}: ${currentTire} compound not viable`,
+            );
+          }
+        }
 
         /*
          * PIT STOP AFTER COMPLETING THIS LAP
@@ -155,8 +156,6 @@ if (!TireStrategy.isTireViable(
           totalTime += lapLoss;
 
           totalPitTime += pitDuration;
-
-          lapTimes.push(lapLoss);
 
           currentTire = pit.tireCompound;
 
@@ -320,12 +319,12 @@ if (!TireStrategy.isTireViable(
 
     const minutes = Math.floor((totalSeconds % 3600) / 60);
 
-    const seconds = Math.round((totalSeconds % 60) * 1000) / 1000;
+    const seconds = (totalSeconds % 60).toFixed(3);
 
     return (
       `${hours}:` +
       `${String(minutes).padStart(2, "0")}:` +
-      `${String(seconds).padStart(6, "0")}`
+      `${seconds.padStart(6, "0")}`
     );
   }
 }
